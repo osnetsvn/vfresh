@@ -1,0 +1,15 @@
+\vspace{-0.2in}
+\section{Conclusion}
+We have presented \arch, a faster and less disruptive live hypervisor replacement approach.
+Leveraging nested virtualization, a thin hyperplexor transparently 
+relocates the ownership of VMs' pages from the stale hypervisor to a new updated hypervisor on 
+the same host, without memory copying overheads.
+\arch also mitigates nesting overhead via direct device assignment, and other optimizations. 
+We also demonstrate how hyperplexor-based remapping approach 
+can be applied for live replacement of an 
+operating system for containers/processes.
+Evaluations of our \arch prototype implementation show sub-10ms hypervisor replacement
+times for VMs and sub-second OS replacement times for containers.
+
+
+%Hypervisors are tend to software aging and require frequent reboots. We show that pre-copy migration takes significant time to migrate VMs from one host to another and affect the performance of the applications running in the guest during migration. We propose a technique, \arch to replace the hypervisor without causing service disruption in the guest using nested virtualization to switch the old hypervisor by a healthy one. We co-map the memory of guest to avoid pre-copy memory iteration rounds and transfer only the VCPU and I/O state during migration and show that the hypervisor replacement time is within 10ms. The healthy hypervisor can be a patched hypervisor or a hypervisor with clean state. \arch achieves network performance in nested guest comparable to single-level guest by applying optimizations to hypervisor.

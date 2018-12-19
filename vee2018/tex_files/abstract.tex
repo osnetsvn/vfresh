@@ -1,0 +1,27 @@
+\begin{abstract}
+Hypervisors are increasingly complex and  must be often updated for 
+applying security patches, bug fixes, and feature upgrades. 
+However, in a virtualized cloud infrastructure, 
+updates to an operational hypervisor can be highly disruptive. 
+Before being updated, virtual machines (VMs) 
+running on a hypervisor must be either migrated away or shut down,
+resulting in downtime, performance loss, and network overhead.
+%Live migration of guest between 
+%hosts also introduces significant network traffic and requires spare hardware 
+%resources. 
+We present a new technique, called \arch, to transparently replace 
+a hypervisor with a new updated instance without disrupting 
+any running VMs.
+% technique to perform live and transparent replacement of a hypervisor with 
+%minimal disruption to guests. 
+A thin shim layer, called the hyperplexor, performs live hypervisor replacement by
+remapping guest memory to a new updated hypervisor on the same machine.
+The hyperplexor leverages nested virtualization for
+hypervisor replacement while minimizing nesting overheads 
+during normal execution.
+We present a prototype implementation of the hyperplexor on 
+the KVM/QEMU platform that can perform live hypervisor replacement within 10ms.
+We also demonstrate how our hyperplexor-based approach can be used 
+with CRIU-based process/container migration to perform
+sub-second replacement of the underlying operating system.
+\end{abstract}
