@@ -1,0 +1,84 @@
+#!/usr/bin/gnuplot
+
+set term pdfcairo size 15,10 font "Arial-Bold,25"
+set output 'migration.pdf'
+
+set border 
+set tics nomirror
+
+set style line 12 lc rgb '#808080' lt 0 lw 1
+set grid back ls 12
+
+set xtics 0,1,5 font "Arial-Bold,25"
+set ytics font "Arial-Bold,25"
+
+# color definitions
+set style line 1 lc rgb '#cb4679' pt 1 ps 2 lt 1 lw 5 # --- magenta
+set style line 2 lc rgb '#5e9c36' pt 6 ps 2 lt 1 lw 5 # --- green
+set style line 3 lc rgb '#0072bd' pt 2 ps 2 lt 1 lw 5 # --- dark purple
+set style line 4 lc rgb '#8b1a0e' pt 4 ps 2 lt 1 lw 5 # --- red
+set style line 5 lc rgb '#fb8761' pt 7 ps 2 lt 1 lw 5 # --- orange
+
+set multiplot layout 2,2
+set lmargin 8
+set rmargin 1
+set tmargin 4
+set bmargin 3
+#set format ''
+
+set key at 3,1
+set key center top box font "Arial-Bold,25" width 4 height 1 maxcols 3 maxrows 2  spacing 1
+set key reverse Left
+set key outside
+
+set xlabel 'Guest Memory (GB)'
+set ylabel 'Replacement Time (ms)'
+set xrange [0:5]
+set yrange [0:1300]
+
+plot 'idle_guest_migration_with_hyperfresh.dat' u 1:2 t 'Inter-host' w lp ls 1, \
+     ''                  u 1:3 t 'Intra-host non-nested' w lp ls 2, \
+     ''                  u 1:4 t 'Intra-host nested (pv-pv)' w lp ls 3, \
+     ''                  u 1:5 t 'Intra-host nested (pt-pv)' w lp ls 4, \
+     ''                  u 1:6 t 'VFresh' w lp ls 5
+
+unset key
+set xlabel 'Guest Memory (GB)'
+set ylabel 'Replacement Time (ms)'
+set xrange [0:5]
+set yrange [0:3500]
+
+plot 'busy_guest_migration_with_hyperfresh.dat' u 1:2 t 'Inter-host' w lp ls 1, \
+     ''                  u 1:3 t 'Intra-host non-nested' w lp ls 2, \
+     ''                  u 1:4 t 'Intra-host nested (pv-pv)' w lp ls 3, \
+     ''                  u 1:5 t 'Intra-host nested (pt-pv)' w lp ls 4, \
+     ''                  u 1:6 t 'VFresh' w lp ls 5
+
+
+unset key
+set xlabel 'Number of Virtual Machines'
+set ylabel 'Replacement Time (ms)'
+set xrange [0:5]
+set yrange [0:1000]
+
+plot 'multivm_idle_guest_migration.dat' u 1:2 t 'Inter-host' w lp ls 1, \
+     ''                  u 1:3 t 'Intra-host non-nested' w lp ls 2, \
+     ''                  u 1:4 t 'Intra-host nested (pv-pv)' w lp ls 3, \
+     ''                  u 1:5 t 'Intra-host nested (pt-pv)' w lp ls 4, \
+     ''                  u 1:6 t 'VFresh' w lp ls 5
+
+
+unset key
+set xlabel 'Number of Virtual Machines'
+set ylabel 'Replacement Time (ms)'
+set xrange [0:5]
+set yrange [0:2000]
+
+plot 'multivm_busy_guest_migration.dat' u 1:2 t 'Inter-host' w lp ls 1, \
+     ''                  u 1:3 t 'Intra-host non-nested' w lp ls 2, \
+     ''                  u 1:4 t 'Intra-host nested (pv-pv)' w lp ls 3, \
+     ''                  u 1:5 t 'Intra-host nested (pt-pv)' w lp ls 4, \
+     ''                  u 1:6 t 'VFresh' w lp ls 5
+
+
+unset multiplot
