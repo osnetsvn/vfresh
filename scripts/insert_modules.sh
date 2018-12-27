@@ -19,4 +19,4 @@ lsmod | grep -ie "igbvf" &> /dev/null
 if [[ $? = 1 ]]
 then
 	modprobe igbvf
-fi 
+fi
