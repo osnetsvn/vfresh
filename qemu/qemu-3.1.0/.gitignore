@@ -213,3 +213,6 @@ trace-dtrace-root.dtrace
 trace-ust-all.h
 trace-ust-all.c
 /target/arm/decode-sve.inc.c
+
+/roms/seabios/config.mak
+/roms/vgabios/config.mak
