@@ -14,6 +14,7 @@ fi
 ./addtap.sh ${vm_num}
 
 sudo qemu-system-x86_64 --enable-kvm \
+	-incoming tcp:0:5555 \
 	-name ${vm_num} \
 	-smp ${vcpus} -cpu host \
 	-m ${memory} \

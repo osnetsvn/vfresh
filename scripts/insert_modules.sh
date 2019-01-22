@@ -1,5 +1,16 @@
 #!/bin/bash
 
+sudo rmmod kvm
+sudo rmmod kvm_intel
+
+
+lsmod | grep -ie "kvm" &> /dev/null
+if [[ $? = 1 ]];
+then
+	modprobe kvm
+	modprobe kvm_intel nested=0
+fi
+
 lsmod | grep -ie "vhost-net" &> /dev/null
 
 if [[ $? = 1 ]];
