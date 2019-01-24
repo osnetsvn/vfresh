@@ -29,6 +29,9 @@
 #define KVM_HC_CLOCK_PAIRING		9
 #define KVM_HC_SEND_IPI		10
 
+//Hyperfresh
+#define HYPERFRESH_KVM_HC_GET_L0PFN 	11
+
 /*
  * hypercalls use architecture specific
  */
