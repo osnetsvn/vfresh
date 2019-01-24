@@ -2094,6 +2094,17 @@ int kvm_cpu_exec(CPUState *cpu)
     return ret;
 }
 
+#ifdef HYPERFRESH_SL1
+int hyperfresh_get_l1gfn(void)
+{
+	int r = 0;
+
+	r = kvm_vm_ioctl(kvm_state, HYPERFRESH_KVM_GET_L1GFN);
+
+	return r;
+}
+#endif
+
 int kvm_ioctl(KVMState *s, int type, ...)
 {
     int ret;

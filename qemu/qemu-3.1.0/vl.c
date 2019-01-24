@@ -134,6 +134,8 @@ int main(int argc, char **argv)
 
 #define MAX_VIRTIO_CONSOLES 1
 
+#include "hyperfresh/hyperfresh.h"
+
 static const char *data_dir[16];
 static int data_dir_idx;
 const char *bios_name = NULL;
@@ -4644,6 +4646,12 @@ int main(int argc, char **argv, char **envp)
 
     accel_setup_post(current_machine);
     os_setup_post();
+
+#ifdef HYPERFRESH_SL1
+    if(hyperfresh_get_l1gfn() < 0){
+	    printf("Hyperfresh: Error in %s\n", __func__);
+    }
+#endif
 
     main_loop();
 
