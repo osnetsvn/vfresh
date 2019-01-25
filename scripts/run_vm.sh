@@ -13,7 +13,7 @@ fi
 
 ./addtap.sh ${vm_num}
 
-sudo qemu-system-x86_64 --enable-kvm \
+sudo qemu-system-x86_64 -enable-kvm \
 	-name ${vm_num} \
 	-smp ${vcpus} -cpu host \
 	-m ${memory} \

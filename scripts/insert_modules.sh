@@ -12,7 +12,7 @@ fi
 lsmod | grep -ie "kvm_intel" &> /dev/null
 if [[ $? = 1 ]];
 then
-	modprobe kvm_intel nested=0
+	modprobe kvm_intel nested=1
 fi
 
 lsmod | grep -ie "vhost-net" &> /dev/null
