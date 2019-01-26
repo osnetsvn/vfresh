@@ -753,6 +753,10 @@ struct kvm_ppc_resize_hpt {
 /*
  * ioctls for /dev/kvm fds:
  */
+
+//Hyperfresh
+#define HYPERFRESH_KVM_GET_L1GFN  _IO(KVMIO,   0x0a)
+
 #define KVM_GET_API_VERSION       _IO(KVMIO,   0x00)
 #define KVM_CREATE_VM             _IO(KVMIO,   0x01) /* returns a VM fd */
 #define KVM_GET_MSR_INDEX_LIST    _IOWR(KVMIO, 0x02, struct kvm_msr_list)

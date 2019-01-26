@@ -27,6 +27,9 @@
 #define KVM_HC_MIPS_CONSOLE_OUTPUT	8
 #define KVM_HC_CLOCK_PAIRING		9
 
+//Hyperfresh
+#define HYPERFRESH_KVM_HC_GET_L0PFN     11
+
 /*
  * hypercalls use architecture specific
  */
