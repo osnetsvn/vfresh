@@ -2956,6 +2956,7 @@ static long kvm_vm_ioctl_check_extension_generic(struct kvm *kvm, long arg)
 
 #ifdef HYPERFRESH_SL1
 
+unsigned long *l2gfn_page, *l1gfn_page;
 static int get_l2gpa_count(struct kvm *kvm){
 
         struct kvm_memory_slot *memslot;
@@ -3042,7 +3043,6 @@ static unsigned long get_page_pfn(unsigned long *ptr){
 
 struct gpa_pages populate_page_with_gfn(unsigned long l2gfn[], unsigned long l1gfn[], int start, int end){
 
-        unsigned long *l2gfn_page, *l1gfn_page;
         unsigned long *l2gfn_page_tracker, *l1gfn_page_tracker;
         struct gpa_pages p;
 
@@ -3059,11 +3059,18 @@ struct gpa_pages populate_page_with_gfn(unsigned long l2gfn[], unsigned long l1g
         while(start <= end){
                 *((unsigned long *)l2gfn_page_tracker) = l2gfn[start];
                 *((unsigned long *)l1gfn_page_tracker) = l1gfn[start];
-                if(!DEBUG_INFO){
+		
+		l1gfn_page_tracker++;
+		l2gfn_page_tracker++;
+                
+		if(!DEBUG_INFO){
                         printk(KERN_INFO"start %d l2gfn %lx l1gfn %lx\n", start, l2gfn[start], l1gfn[start]);
                 }
                 start++;
         }
+
+	if(!DEBUG_INFO)
+		printk(KERN_INFO"l2gfn_page %lx l1gfn_page %lx\n", p.gfn_of_l2page, p.gfn_of_l1page);
 
         return p;
 }
@@ -3110,6 +3117,9 @@ static int hyperfresh_get_l1gfn(struct kvm *kvm)
 
                 gp = populate_page_with_gfn(mappings.l2gfn, mappings.l1gfn, start, end);
 
+		if(!DEBUG_INFO)
+			printk(KERN_INFO"l2gfn_page %lx l1gfn_page %lx\n", gp.gfn_of_l2page, gp.gfn_of_l1page);
+
                 if((ret = send_gfn_to_l0(gp.gfn_of_l2page, gp.gfn_of_l1page, end-start+1, kvm)) < 0)
                         printk(KERN_INFO"Hyperfresh: Error in %s\n", __func__);
 
@@ -3120,8 +3130,11 @@ static int hyperfresh_get_l1gfn(struct kvm *kvm)
                 }
                 else{
                         end += remaining_count;
-                }
-        }
+		}
+
+		vfree(l2gfn_page);
+		vfree(l1gfn_page);
+	}
 
         kfree_memory(mappings.l2gfn);
         kfree_memory(mappings.l1gfn);
