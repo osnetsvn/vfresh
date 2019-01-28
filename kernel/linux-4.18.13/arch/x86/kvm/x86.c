@@ -70,6 +70,9 @@
 #include <asm/mshyperv.h>
 #include <asm/hypervisor.h>
 
+//Hyperfresh
+#include <linux/hashtable.h>
+
 #define CREATE_TRACE_POINTS
 #include "trace.h"
 
@@ -6738,6 +6741,90 @@ void kvm_vcpu_deactivate_apicv(struct kvm_vcpu *vcpu)
 	kvm_x86_ops->refresh_apicv_exec_ctrl(vcpu);
 }
 
+#define DEBUG_INFO 1
+#define HYPERFRESH_KVM_MAP_HASH_BITS 20
+int source_map_count = 0;
+struct source_mappings{
+        unsigned long source_l2gfn;
+        unsigned long guestid;
+        unsigned long l0pfn;
+        struct hlist_node node;
+};
+
+struct source_mappings *hyperfresh_global_map;
+
+static DEFINE_HASHTABLE(hyperfresh_kvm_map_hash, HYPERFRESH_KVM_MAP_HASH_BITS);
+static DEFINE_SPINLOCK(hyperfresh_kvm_map_hash_lock);
+
+int allocate_memory_global_map(void)
+{
+        hyperfresh_global_map = kmalloc(sizeof(struct source_mappings), GFP_KERNEL);
+        if(!hyperfresh_global_map){
+                        printk(KERN_INFO"Hyperfresh: Error allocating memory in %s\n", __func__);
+                        return -1;
+        }
+        memset(hyperfresh_global_map, 0, sizeof(struct source_mappings));
+
+        return 0;
+}
+
+int update_global_map(unsigned long page_l2hva, unsigned long page_l1hva,
+                                unsigned long guestID, struct kvm_vcpu *vcpu)
+{
+        unsigned long temp_l1gfn;
+        unsigned long flags;
+
+        hyperfresh_global_map->source_l2gfn = *(unsigned long*)page_l2hva;
+        temp_l1gfn = *(unsigned long*)page_l1hva;
+
+        hyperfresh_global_map->l0pfn = gfn_to_pfn(vcpu->kvm, temp_l1gfn);
+        hyperfresh_global_map->guestid = guestID;
+
+        if(DEBUG_INFO){
+                printk(KERN_INFO"l2gfn %lx l1gfn %lx l0pfn %lx guestID %ld\n", hyperfresh_global_map->source_l2gfn,
+							temp_l1gfn,
+                                                        hyperfresh_global_map->l0pfn,
+                                                        guestID);
+        }
+
+        spin_lock_irqsave(&hyperfresh_kvm_map_hash_lock, flags);
+        hash_add(hyperfresh_kvm_map_hash, &hyperfresh_global_map->node, hyperfresh_global_map->source_l2gfn);
+        spin_unlock_irqrestore(&hyperfresh_kvm_map_hash_lock, flags);
+
+        return 0;
+}
+
+int hyperfresh_kvm_pv_get_l0pfn_min_hypercall(struct kvm_vcpu *vcpu, unsigned long p_l2gfn,
+                                                unsigned long p_l1gfn, unsigned long count,
+                                                unsigned long guestID)
+{
+        unsigned long page_l2hva;
+        unsigned long page_l1hva;
+        int ret = -1, i;
+
+        page_l2hva = gfn_to_hva(vcpu->kvm, p_l2gfn);
+        page_l1hva = gfn_to_hva(vcpu->kvm, p_l1gfn);
+
+	if(!DEBUG_INFO)
+		printk(KERN_INFO"p_l2gfn %lx p_l1gfn %lx count %lx guestID %lx\n", p_l2gfn, p_l1gfn, 
+									count, guestID);
+
+        for(i = 0; i < count; i++){
+
+                ret = allocate_memory_global_map();
+
+                ret = update_global_map(page_l2hva, page_l1hva, guestID, vcpu);
+
+                page_l2hva += 8;
+                page_l1hva += 8;
+
+                source_map_count++;
+        }
+
+        return ret;
+}
+//#endif
+
 int kvm_emulate_hypercall(struct kvm_vcpu *vcpu)
 {
 	unsigned long nr, a0, a1, a2, a3, ret;
@@ -6781,6 +6868,13 @@ int kvm_emulate_hypercall(struct kvm_vcpu *vcpu)
 		ret = kvm_pv_clock_pairing(vcpu, a0, a1);
 		break;
 #endif
+//#ifdef HYPERFRESH_L0
+        case HYPERFRESH_KVM_HC_GET_L0PFN:
+                ret = hyperfresh_kvm_pv_get_l0pfn_min_hypercall(vcpu, a0, a1, a2, a3);
+		if(!DEBUG_INFO)
+			printk(KERN_INFO"Hyperfresh: Hypercall invoked\n");
+                break;
+//#endif
 	default:
 		ret = -KVM_ENOSYS;
 		break;
