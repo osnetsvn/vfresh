@@ -1218,7 +1218,8 @@ struct kvm_vfio_spapr_tce {
 #define KVM_SET_IDENTITY_MAP_ADDR _IOW(KVMIO,  0x48, __u64)
 
 #ifdef HYPERFRESH_SL1
-#define HYPERFRESH_KVM_GET_L1GFN  _IO(KVMIO,   0x0a)
+#define HYPERFRESH_KVM_GET_L1GFN  	_IO(KVMIO,   0x0a)
+#define HYPERFRESH_KVM_ASSIGN_L1GFN  	_IO(KVMIO,   0x0b)
 #endif
 
 /* enable ucontrol for s390 */

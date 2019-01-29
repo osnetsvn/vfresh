@@ -2103,6 +2103,15 @@ int hyperfresh_get_l1gfn(void)
 
 	return r;
 }
+
+int hyperfresh_assign_l1gfn(void)
+{
+    int r = 0;
+
+    r = kvm_vm_ioctl(kvm_state, HYPERFRESH_KVM_ASSIGN_L1GFN);
+
+    return r;
+}
 #endif
 
 int kvm_ioctl(KVMState *s, int type, ...)

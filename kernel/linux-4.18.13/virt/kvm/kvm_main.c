@@ -3236,26 +3236,26 @@ static int hyperfresh_map_l1gfn(struct kvm *kvm)
 
 	ret = gf_pages(mappings.l1gfn, l1hva, mappings.map_count);
 
-	        for(i = 0; i < mappings.map_count; i++){
-                if(!DEBUG_INFO){
-                        printk(KERN_INFO"i %d l2gfn %lx l1gfn %lx\n", i, mappings.l2gfn[i], mappings.l1gfn[i]);
-                }
-        }
+	for(i = 0; i < mappings.map_count; i++){
+		if(DEBUG_INFO){
+			printk(KERN_INFO"i %d l2gfn %lx l1gfn %lx\n", i, mappings.l2gfn[i], mappings.l1gfn[i]);
+		}
+	}
 
-        remaining_count = mappings.map_count-1;
-        start = 0;
-        end = 511;
-        while(remaining_count > 0){
-                if(!DEBUG_INFO){
-                        printk(KERN_INFO"remaining count %d start %d end %d\n",
-                                        remaining_count,
-                                        start, end);
-                }
+	remaining_count = mappings.map_count-1;
+	start = 0;
+	end = 511;
+	while(remaining_count > 0){
+		if(!DEBUG_INFO){
+			printk(KERN_INFO"remaining count %d start %d end %d\n",
+					remaining_count,
+					start, end);
+		}
 
-                gp = populate_page_with_gfn(mappings.l2gfn, mappings.l1gfn, start, end);
+		gp = populate_page_with_gfn(mappings.l2gfn, mappings.l1gfn, start, end);
 
-                if((ret = send_free_gfn_to_l0(gp.gfn_of_l2page, gp.gfn_of_l1page, end-start+1, kvm)) < 0)
-                        printk(KERN_INFO"Hyperfresh: Error in %s\n", __func__);
+		if((ret = send_free_gfn_to_l0(gp.gfn_of_l2page, gp.gfn_of_l1page, end-start+1, kvm)) < 0)
+			printk(KERN_INFO"Hyperfresh: Error in %s\n", __func__);
 
                 remaining_count -= 511;
                 start = end + 1;
