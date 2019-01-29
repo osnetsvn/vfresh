@@ -29,7 +29,7 @@
 
 //Hyperfresh
 #define HYPERFRESH_KVM_HC_GET_L0PFN     11
-
+#define HYPERFRESH_KVM_HC_MAP_L0PFN	12
 /*
  * hypercalls use architecture specific
  */

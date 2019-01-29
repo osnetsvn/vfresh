@@ -1,7 +1,7 @@
 #include <linux/kvm_types.h>
 
 #define DEBUG_INFO 1
-#define HYPERFRESH_SL1 0
+#define HYPERFRESH_SL1 1
 //#define HYPERFRESH_L0 1
 //#define HYPERFRESH_KVM_MAP_HASH_BITS 20
 
