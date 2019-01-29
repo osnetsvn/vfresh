@@ -756,6 +756,7 @@ struct kvm_ppc_resize_hpt {
 
 //Hyperfresh
 #define HYPERFRESH_KVM_GET_L1GFN  _IO(KVMIO,   0x0a)
+#define HYPERFRESH_KVM_MAP_L1GFN  _IO(KVMIO,   0x0b)
 
 #define KVM_GET_API_VERSION       _IO(KVMIO,   0x00)
 #define KVM_CREATE_VM             _IO(KVMIO,   0x01) /* returns a VM fd */

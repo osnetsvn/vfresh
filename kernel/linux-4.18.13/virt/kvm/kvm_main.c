@@ -2955,6 +2955,8 @@ static long kvm_vm_ioctl_check_extension_generic(struct kvm *kvm, long arg)
 }
 
 #ifdef HYPERFRESH_SL1
+extern int hyperfresh_madvise(unsigned long start, size_t len_in, int behaviour);
+extern gfn_t sys_new_malloc(unsigned long virt_addr, unsigned long pa, int start_or_end);
 
 unsigned long *l2gfn_page, *l1gfn_page;
 static int get_l2gpa_count(struct kvm *kvm){
@@ -3084,6 +3086,15 @@ static int send_gfn_to_l0(unsigned long l2page, unsigned long l1page, int count,
         return ret;
 }
 
+static int send_free_gfn_to_l0(unsigned long l2page, unsigned long l1page, int count, struct kvm *kvm){
+
+        int ret = -1;
+
+        ret = kvm_hypercall4(HYPERFRESH_KVM_HC_MAP_L0PFN, l2page, l1page, count, kvm->userspace_pid);
+
+        return ret;
+}
+
 static int hyperfresh_get_l1gfn(struct kvm *kvm)
 {
         struct l1_map mappings;
@@ -3141,6 +3152,127 @@ static int hyperfresh_get_l1gfn(struct kvm *kvm)
 
         return 0;
 }
+
+static void get_hva_mapping(unsigned long l2gfn[], unsigned long l1hva[], struct kvm *kvm){
+
+        struct kvm_memory_slot *memslot;
+        struct kvm_memslots *slots;
+
+        int i, j;
+        unsigned long templ2gfn;
+
+        slots = kvm_memslots(kvm);
+
+        j = 0;
+        kvm_for_each_memslot(memslot, slots){
+                for(i = memslot->base_gfn; i < memslot->base_gfn+memslot->npages; i++){
+                        if ((templ2gfn = gfn_to_pfn(kvm, i)) != 0x7ff0000000000002){
+                                l2gfn[j] = i;
+                                l1hva[j] = gfn_to_hva(kvm, l2gfn[j]);
+                                if(DEBUG_INFO){
+                                        printk(KERN_INFO"j = %d, l2gfn %lx l1hva %lx\n", j, l2gfn[j], l1hva[j]);
+                                }
+                                j++;
+                        }
+                }
+        }
+}
+
+static int invalidate_pt_entries(unsigned long l1hva[], int count){
+	int i, ret = -1;
+
+	for(i = 0; i < count; i++){
+		ret = hyperfresh_madvise(l1hva[i], PAGE_SIZE, 4);
+	}
+
+	return ret;
+}
+
+static int gf_pages(unsigned long l1gfn[], unsigned long l1hva[], int count){
+	
+	int order = 10, i = 0, temp_count = 0, dummy;
+	unsigned long pa;
+
+	while(count > 0){
+		if(count >= (1 << order)){
+			pa = __get_free_pages(GFP_USER, order);
+			if(!pa)
+				return -ENOMEM;
+			else{
+				for(i = 0; i < (1 << order); i++){
+					l1gfn[temp_count] = sys_new_malloc(l1hva[temp_count], pa, dummy);
+					temp_count++;
+					pa += PAGE_SIZE;
+				}
+				count -= (1 << order);
+			}
+		}
+		else{
+			order--;
+		}
+	}
+
+	return 0;
+}
+
+static int hyperfresh_map_l1gfn(struct kvm *kvm)
+{
+	struct l1_map mappings;
+	struct gpa_pages gp;
+	int ret = -1;
+	int start, end, i;
+	int remaining_count;
+	unsigned long *l1hva;
+
+	mappings.map_count = get_l2gpa_count(kvm);	
+	
+	mappings.l2gfn = alloc_memory(mappings.map_count);
+	mappings.l1gfn = alloc_memory(mappings.map_count);
+	l1hva = alloc_memory(mappings.map_count);
+
+	get_hva_mapping(mappings.l2gfn, l1hva, kvm);
+
+	ret = invalidate_pt_entries(l1hva, mappings.map_count);
+
+	ret = gf_pages(mappings.l1gfn, l1hva, mappings.map_count);
+
+	        for(i = 0; i < mappings.map_count; i++){
+                if(!DEBUG_INFO){
+                        printk(KERN_INFO"i %d l2gfn %lx l1gfn %lx\n", i, mappings.l2gfn[i], mappings.l1gfn[i]);
+                }
+        }
+
+        remaining_count = mappings.map_count-1;
+        start = 0;
+        end = 511;
+        while(remaining_count > 0){
+                if(!DEBUG_INFO){
+                        printk(KERN_INFO"remaining count %d start %d end %d\n",
+                                        remaining_count,
+                                        start, end);
+                }
+
+                gp = populate_page_with_gfn(mappings.l2gfn, mappings.l1gfn, start, end);
+
+                if((ret = send_free_gfn_to_l0(gp.gfn_of_l2page, gp.gfn_of_l1page, end-start+1, kvm)) < 0)
+                        printk(KERN_INFO"Hyperfresh: Error in %s\n", __func__);
+
+                remaining_count -= 511;
+                start = end + 1;
+                if((remaining_count / 511) > 0){
+                        end += 511;
+                }
+                else{
+                        end += remaining_count;
+                }
+        }
+
+        kfree_memory(mappings.l2gfn);
+        kfree_memory(mappings.l1gfn);
+	
+	return 0;
+}
+
 #endif
 
 static long kvm_vm_ioctl(struct file *filp,
@@ -3309,6 +3441,9 @@ out_free_irq_routing:
         case HYPERFRESH_KVM_GET_L1GFN:
                 r = hyperfresh_get_l1gfn(kvm);
                 break;
+	case HYPERFRESH_KVM_MAP_L1GFN:
+		r = hyperfresh_map_l1gfn(kvm);
+		break;
 #endif
 	default:
 		r = kvm_arch_vm_ioctl(filp, ioctl, arg);
