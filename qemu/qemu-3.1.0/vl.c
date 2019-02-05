@@ -4651,6 +4651,9 @@ int main(int argc, char **argv, char **envp)
     if(hyperfresh_get_l1gfn() < 0){
 	    printf("Hyperfresh: Error in %s\n", __func__);
     }
+    if(hyperfresh_assign_l1gfn() < 0){
+	    printf("Hyperfresh: Error in %s\n", __func__);
+    }
 #endif
 
     main_loop();
