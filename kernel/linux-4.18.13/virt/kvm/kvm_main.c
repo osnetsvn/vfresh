@@ -2982,7 +2982,7 @@ static int get_l2gpa_count(struct kvm *kvm){
 
 static unsigned long* alloc_memory(long size){
 
-        unsigned long *ptr = kmalloc(sizeof(unsigned long)* size, GFP_KERNEL);
+        unsigned long *ptr = kvmalloc(sizeof(unsigned long)* size, GFP_KERNEL);
 
         if(!ptr){
                 printk(KERN_INFO"Hyperfresh: Error allocating memory in %s\n", __func__);
@@ -3018,7 +3018,7 @@ static void get_mappings(unsigned long l2gfn[], unsigned long l1gfn[], struct kv
 }
 
 static void kfree_memory(unsigned long *ptr){
-        kfree(ptr);
+        kvfree(ptr);
 }
 
 static unsigned long* setup_page(void){
