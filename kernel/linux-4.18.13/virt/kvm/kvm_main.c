@@ -3169,7 +3169,7 @@ static void get_hva_mapping(unsigned long l2gfn[], unsigned long l1hva[], struct
                         if ((templ2gfn = gfn_to_pfn(kvm, i)) != 0x7ff0000000000002){
                                 l2gfn[j] = i;
                                 l1hva[j] = gfn_to_hva(kvm, l2gfn[j]);
-                                if(DEBUG_INFO){
+                                if(!DEBUG_INFO){
                                         printk(KERN_INFO"j = %d, l2gfn %lx l1hva %lx\n", j, l2gfn[j], l1hva[j]);
                                 }
                                 j++;
@@ -3196,11 +3196,15 @@ static int gf_pages(unsigned long l1gfn[], unsigned long l1hva[], int count){
 	while(count > 0){
 		if(count >= (1 << order)){
 			pa = __get_free_pages(GFP_USER, order);
-			if(!pa)
+			if(!pa){
+				printk(KERN_INFO"Hyperfresh: Error in %s\n",__func__);
 				return -ENOMEM;
+			}
 			else{
 				for(i = 0; i < (1 << order); i++){
 					l1gfn[temp_count] = sys_new_malloc(l1hva[temp_count], pa, dummy);
+					if(DEBUG_INFO)
+						printk(KERN_INFO"l2gfn %lx order %d\n", l1gfn[temp_count], order);
 					temp_count++;
 					pa += PAGE_SIZE;
 				}
@@ -3237,7 +3241,7 @@ static int hyperfresh_map_l1gfn(struct kvm *kvm)
 	ret = gf_pages(mappings.l1gfn, l1hva, mappings.map_count);
 
 	for(i = 0; i < mappings.map_count; i++){
-		if(DEBUG_INFO){
+		if(!DEBUG_INFO){
 			printk(KERN_INFO"i %d l2gfn %lx l1gfn %lx\n", i, mappings.l2gfn[i], mappings.l1gfn[i]);
 		}
 	}
