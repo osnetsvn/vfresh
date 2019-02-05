@@ -35,25 +35,19 @@ EXPORT_SYMBOL(sys_new_malloc);
 int count_nopte = 0;
 int count_pte = 0;
 
-static gfn_t create_mapping(struct vm_area_struct *vma,
+static int create_mapping(struct vm_area_struct *vma,
 				pmd_t *pmd,
 				unsigned long virt_addr,
-				unsigned long pa)
+				unsigned long pfn)
 {
 	struct page *page;
 	pte_t *pte;
 	pte_t entry;
 	spinlock_t *ptl;
 	int ret = 0;
-	gfn_t pfn;
 
-	if (unlikely(anon_vma_prepare(vma)))
-		return -2;	
-
-	page = virt_to_page(pa);
-	get_page(page);
+	page = pfn_to_page(pfn);
 	atomic_inc(&page->_mapcount);
-	pfn = page_to_pfn(page);
 
 	if (!page)
 		return PAGE_ERROR;
@@ -63,8 +57,6 @@ static gfn_t create_mapping(struct vm_area_struct *vma,
 	pte = get_locked_pte(vma->vm_mm, virt_addr, &ptl);
 
         inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
-	page_add_new_anon_rmap(page, vma, virt_addr, false);
-        lru_cache_add_active_or_unevictable(page, vma);
 
 	entry = mk_pte(page, vma->vm_page_prot);
 
@@ -78,13 +70,13 @@ static gfn_t create_mapping(struct vm_area_struct *vma,
 	
 	count_nopte++;	
 
-	return pfn;
+	return 0;
 }
 
-static gfn_t do_anonymous_page(struct vm_area_struct *vma, 
+static int do_anonymous_page(struct vm_area_struct *vma, 
 				pmd_t *pmd, 
 				unsigned long virt_addr,
-				unsigned long pa)
+				unsigned long pfn)
 {
 	struct page *page;
 	pte_t *pte;
@@ -93,20 +85,12 @@ static gfn_t do_anonymous_page(struct vm_area_struct *vma,
 	spinlock_t *ptl;
 	pte_t entry;
 
-	gfn_t pfn;
-
-	if (unlikely(anon_vma_prepare(vma)))
-		return -2;	
-
 	if (pte_alloc(vma->vm_mm, pmd, virt_addr))
                 return PTE_ERROR;
 
-	page = virt_to_page(pa);
-	get_page(page);
-	
+	page = pfn_to_page(pfn);
 	atomic_inc(&page->_mapcount);
-       	pfn = page_to_pfn(page);
-
+	
 	if (!page)
 		return PAGE_ERROR;
 
@@ -123,8 +107,6 @@ static gfn_t do_anonymous_page(struct vm_area_struct *vma,
                 goto release;
 
         inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
-        page_add_new_anon_rmap(page, vma, virt_addr, false);
-        lru_cache_add_active_or_unevictable(page, vma);
 
 setpte:
         set_pte_at(vma->vm_mm, virt_addr, pte, entry);
@@ -134,7 +116,7 @@ unlock:
         pte_unmap_unlock(pte, ptl);
 	count_pte++;
 
-	return pfn;
+	return ret;
 
 release:
         put_page(page);
@@ -142,8 +124,7 @@ release:
 
 
 }
-
-gfn_t  handle_new_malloc(struct vm_area_struct *vma, unsigned long pa, unsigned long virt_addr)
+int handle_new_malloc(struct vm_area_struct *vma, unsigned long virt_addr, unsigned long pfn)
 {
 	struct mm_struct *mm = vma->vm_mm;
 
@@ -152,8 +133,6 @@ gfn_t  handle_new_malloc(struct vm_area_struct *vma, unsigned long pa, unsigned 
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
-
-	gfn_t pfn;
 	
 	pgd = pgd_offset(mm, virt_addr);
 	
@@ -172,7 +151,7 @@ gfn_t  handle_new_malloc(struct vm_area_struct *vma, unsigned long pa, unsigned 
 
 	pte = pte_offset_map(pmd, virt_addr);
 
-       	/* if the entry is not accessed,
+	/* if the entry is not accessed,
 	place it as NULL*/
 	if (pte_none(*pte)) {
 		pte_unmap(pte);
@@ -181,13 +160,12 @@ gfn_t  handle_new_malloc(struct vm_area_struct *vma, unsigned long pa, unsigned 
 
 	if (!pte)
 	{
-		pfn = do_anonymous_page(vma, pmd, virt_addr, pa);
-		return pfn;
+		return do_anonymous_page(vma, pmd, virt_addr, pfn);
 	}
 	else{
-		pfn = create_mapping(vma, pmd, virt_addr, pa);
-		return pfn;
+		return create_mapping(vma, pmd, virt_addr, pfn);
 	}
+
 }
 
 u64 get_cr3(void)
@@ -233,15 +211,13 @@ int enable_kvm_page_allocation(void)
 	return 0;
 }
 
-asmlinkage gfn_t sys_new_malloc(unsigned long virt_addr, unsigned long pa, int start_or_end)
+asmlinkage int sys_new_malloc(unsigned long virt_addr, int start_or_end, unsigned long pfn)
 {
 	int ret;
 	struct page *pg;
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-
-	gfn_t pfn;
 
 	//check start_or_end
 	if (start_or_end == 1)
@@ -256,7 +232,6 @@ asmlinkage gfn_t sys_new_malloc(unsigned long virt_addr, unsigned long pa, int s
 
 	tsk = current;
         mm = tsk->mm;
-	// semaphore
 	down_read(&mm->mmap_sem);
  	
 	vma = find_vma(mm, virt_addr);
@@ -267,7 +242,7 @@ asmlinkage gfn_t sys_new_malloc(unsigned long virt_addr, unsigned long pa, int s
         }
 	else
 	{
-		pfn = handle_new_malloc(vma, pa, virt_addr);
+		ret = handle_new_malloc(vma, virt_addr, pfn);
 		if (ret)
 		{
 			printk(KERN_ALERT "New Accolation Failed: %d!\n", ret);
@@ -276,6 +251,6 @@ asmlinkage gfn_t sys_new_malloc(unsigned long virt_addr, unsigned long pa, int s
 		}
 	}
 	up_read(&mm->mmap_sem);
- 	return pfn;
+ 	return 0;
 }
 EXPORT_SYMBOL(sys_new_malloc);

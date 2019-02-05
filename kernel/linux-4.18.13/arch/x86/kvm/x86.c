@@ -6742,7 +6742,7 @@ void kvm_vcpu_deactivate_apicv(struct kvm_vcpu *vcpu)
 }
 
 #define DEBUG_INFO 1
-#define HYPERFRESH_KVM_MAP_HASH_BITS 20
+#define HYPERFRESH_KVM_MAP_HASH_BITS 24
 int source_map_count = 0;
 struct source_mappings{
         unsigned long source_l2gfn;
@@ -6752,13 +6752,22 @@ struct source_mappings{
 };
 
 struct source_mappings *hyperfresh_global_map;
+struct source_mappings *map = NULL;
 
 static DEFINE_HASHTABLE(hyperfresh_kvm_map_hash, HYPERFRESH_KVM_MAP_HASH_BITS);
 static DEFINE_SPINLOCK(hyperfresh_kvm_map_hash_lock);
 
+extern int sys_new_malloc(unsigned long virt_addr, int start_or_end, unsigned long pfn);
+extern int hyperfresh_madvise(unsigned long start, size_t len_in, int behavior);
+
+unsigned long *dest_l2gfn;
+//unsigned long *dest_l1hva;
+//unsigned long *dest_l1gfn;
+//unsigned long *dest_l0hva;
+
 int allocate_memory_global_map(void)
 {
-        hyperfresh_global_map = kmalloc(sizeof(struct source_mappings), GFP_KERNEL);
+        hyperfresh_global_map = kvmalloc(sizeof(struct source_mappings), GFP_KERNEL);
         if(!hyperfresh_global_map){
                         printk(KERN_INFO"Hyperfresh: Error allocating memory in %s\n", __func__);
                         return -1;
@@ -6780,7 +6789,7 @@ int update_global_map(unsigned long page_l2hva, unsigned long page_l1hva,
         hyperfresh_global_map->l0pfn = gfn_to_pfn(vcpu->kvm, temp_l1gfn);
         hyperfresh_global_map->guestid = guestID;
 
-        if(DEBUG_INFO){
+        if(!DEBUG_INFO){
                 printk(KERN_INFO"l2gfn %lx l1gfn %lx l0pfn %lx guestID %ld\n", hyperfresh_global_map->source_l2gfn,
 							temp_l1gfn,
                                                         hyperfresh_global_map->l0pfn,
@@ -6822,6 +6831,93 @@ int hyperfresh_kvm_pv_get_l0pfn_min_hypercall(struct kvm_vcpu *vcpu, unsigned lo
         }
 
         return ret;
+}
+
+static int counter;
+static unsigned long get_l0hva(unsigned long page_l2hva, unsigned long page_l1hva,
+                                unsigned long guestID, struct kvm_vcpu *vcpu){
+	
+	unsigned long temp_dest_l1gfn;
+	unsigned long temp_dest_l0hva;
+
+	dest_l2gfn[counter] = *(unsigned long*)page_l2hva;
+	temp_dest_l1gfn = *(unsigned long*)page_l1hva;
+	temp_dest_l0hva = gfn_to_hva(vcpu->kvm, temp_dest_l1gfn);
+
+	return temp_dest_l0hva;
+}
+
+static int invalidate_pg_entries(unsigned long l0hva){
+	
+	int ret = -1;
+
+	ret = hyperfresh_madvise(l0hva, PAGE_SIZE, 4);
+
+	return ret;
+}
+
+static int get_l0pfn_global_map(unsigned long l0hva){
+	
+	unsigned long flags, ret = -1, dummy = -1;
+	
+	if(!DEBUG_INFO){
+		printk(KERN_INFO"l2gfn %lx l0hva %lx\n", dest_l2gfn[counter], l0hva);
+	}
+
+	spin_lock_irqsave(&hyperfresh_kvm_map_hash_lock, flags);
+	
+	hash_for_each_possible(hyperfresh_kvm_map_hash, map, node, dest_l2gfn[counter]){
+		if(map->source_l2gfn == dest_l2gfn[counter]){
+			ret = sys_new_malloc(l0hva, dummy, map->l0pfn);
+			break;
+		}
+	}
+	
+	spin_unlock_irqrestore(&hyperfresh_kvm_map_hash_lock, flags);
+
+	if(!DEBUG_INFO){
+		printk(KERN_INFO"l2gfn %lx l0hva %lx l0pfn %lx\n", dest_l2gfn[counter], l0hva, map->l0pfn);
+	}
+
+	return ret;
+}
+
+static int hyperfresh_kvm_pv_map_pfn_min_hypercall(struct kvm_vcpu *vcpu, 
+						unsigned long p_l2gfn, 
+						unsigned long p_l1gfn, 
+						unsigned long count, 
+						unsigned long guestID){
+	unsigned long page_l2hva, page_l1hva;
+	unsigned long temp_l0hva;
+
+	int ret = -1, i;
+
+	dest_l2gfn = kvmalloc(sizeof(unsigned long) * source_map_count, GFP_KERNEL);
+	if(!dest_l2gfn)
+		printk(KERN_INFO"Hyperfresh: Error allocating memory\n");
+
+	page_l2hva = gfn_to_hva(vcpu->kvm, p_l2gfn);
+	page_l1hva = gfn_to_hva(vcpu->kvm, p_l1gfn);
+
+	if(!DEBUG_INFO)
+		printk(KERN_INFO"p_l2gfn %lx p_l1gfn %lx count %lx guestID %lx\n", p_l2gfn, p_l1gfn, 
+				count, guestID);
+
+	for(i = 0; i < count; i++){
+		
+		temp_l0hva = get_l0hva(page_l2hva, page_l1hva, guestID, vcpu);	
+		
+		ret = invalidate_pg_entries(temp_l0hva);
+
+		ret = get_l0pfn_global_map(temp_l0hva);
+
+		page_l2hva += 8;
+		page_l1hva += 8;
+
+		counter++;
+	}
+
+	return ret;
 }
 //#endif
 
@@ -6872,9 +6968,14 @@ int kvm_emulate_hypercall(struct kvm_vcpu *vcpu)
         case HYPERFRESH_KVM_HC_GET_L0PFN:
                 ret = hyperfresh_kvm_pv_get_l0pfn_min_hypercall(vcpu, a0, a1, a2, a3);
 		if(!DEBUG_INFO)
-			printk(KERN_INFO"Hyperfresh: Hypercall invoked\n");
+			printk(KERN_INFO"Hyperfresh: Hypercall %s\n",__func__);
                 break;
-//#endif
+	case HYPERFRESH_KVM_HC_MAP_L0PFN:
+		ret = hyperfresh_kvm_pv_map_pfn_min_hypercall(vcpu, a0, a1, a2, a3);
+		if(!DEBUG_INFO)
+			printk(KERN_INFO"Hyperfresh: Hypercall %s\n",__func__);
+		break;
+//#endif		
 	default:
 		ret = -KVM_ENOSYS;
 		break;
