@@ -2928,6 +2928,7 @@ typedef enum {
  */
 static MigIterateState migration_iteration_run(MigrationState *s)
 {
+#ifndef HYPERFRESH_SL1
     uint64_t pending_size, pend_pre, pend_compat, pend_post;
     bool in_postcopy = s->state == MIGRATION_STATUS_POSTCOPY_ACTIVE;
 
@@ -2956,8 +2957,14 @@ static MigIterateState migration_iteration_run(MigrationState *s)
         migration_completion(s);
         return MIG_ITERATE_BREAK;
     }
+#elif
+	migration_completion(s);
+	return MIG_ITERATE_BREAK;
+#endif
 
+#ifndef HYPERFRESH_SL1
     return MIG_ITERATE_RESUME;
+#endif
 }
 
 static void migration_iteration_finish(MigrationState *s)
@@ -3070,6 +3077,7 @@ static void *migration_thread(void *opaque)
 
     trace_migration_thread_setup_complete();
 
+#ifndef HYPERFRESH_SL1
     while (s->state == MIGRATION_STATUS_ACTIVE ||
            s->state == MIGRATION_STATUS_POSTCOPY_ACTIVE) {
         int64_t current_time;
@@ -3125,11 +3133,41 @@ static void *migration_thread(void *opaque)
             trace_migration_thread_ratelimit_post(urgent);
         }
     }
+#elif
+    if(s->state == MIGRATION_STATUS_ACTIVE){
+	    if (urgent || !qemu_file_rate_limit(s->to_dst_file)) {
+		    MigIterateState iter_state = migration_iteration_run(s);
+		    if (iter_state == MIG_ITERATE_SKIP) {
+			    continue;
+		    } else if (iter_state == MIG_ITERATE_BREAK) {
+			    break;
+		    }
+	    }
 
+	    /*
+	     * Try to detect any kind of failures, and see whether we
+	     * should stop the migration now.
+	     */
+	    thr_error = migration_detect_error(s);
+	    if (thr_error == MIG_THR_ERR_FATAL) {
+		    /* Stop migration */
+		    break;
+	    } else if (thr_error == MIG_THR_ERR_RECOVERED) {
+		    trace_migration_thread_after_loop();
+		    migration_iteration_finish(s);
+		    rcu_unregister_thread();
+		    return NULL;	
+	    }
+    }
+#endif
+
+#ifndef HYPERFRESH_SL1	
     trace_migration_thread_after_loop();
     migration_iteration_finish(s);
     rcu_unregister_thread();
     return NULL;
+#endif
+
 }
 
 void migrate_fd_connect(MigrationState *s, Error *error_in)

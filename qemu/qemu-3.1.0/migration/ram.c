@@ -3309,7 +3309,11 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     while (true) {
         int pages;
 
+#ifndef HYPERFRESH_SL1
         pages = ram_find_and_save_block(rs, !migration_in_colo_state());
+#elif 
+	pages = 0
+#endif
         /* no more blocks to sent */
         if (pages == 0) {
             break;
